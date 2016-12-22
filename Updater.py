@@ -1,13 +1,15 @@
 import os
-from os import path
+import threading
 import subprocess
 from lxml import html
 import csv
+from time import sleep
 from zipfile import ZipFile
 from urllib.request import urlopen
 import asyncio
+import aiohttp
 from aiohttp import ClientSession
-import selenium
+from selenium import webdriver
 
 
 class MdbDistillator():
@@ -35,8 +37,9 @@ class MdbDistillator():
         mdb_path = self._download_and_extract_zip()
         csv_path = self.temp_dir + '/result.csv'
         try:
-            subprocess.call("mdb-export '%s' 'COGCC_Spacing_Download' > %s" % (self.temp_dir + '/' + mdb_path, csv_path),
-                            shell=True)
+            subprocess.call(
+                "mdb-export '%s' 'COGCC_Spacing_Download' > %s" % (self.temp_dir + '/' + mdb_path, csv_path),
+                shell=True)
 
             with open(csv_path) as csvfile:
                 rows = [row for row in csv.reader(csvfile, delimiter=',', quotechar='"')]
@@ -50,7 +53,7 @@ class Spider():
     def __init__(self):
         self.url_sceleton = 'http://ogccweblink.state.co.us/results.aspx?classid=04&id=%s'
 
-    def load_items(self, csv_rows):
+    def load_items(self, csv_rows, slice=0):
         'Returns dicts, pairs'
         items = []
         for row in csv_rows:
@@ -62,59 +65,73 @@ class Spider():
                           'cause_num': row[6],
                           'order_num': row[7]})
         # Get index - pair values
-        pairs = set([(item[0], item[1]['cause_num'] + '-' + item[1]['order_num']) for i, item in enumerate(items)])
-        return items, pairs
+        pairs = set([(d['cause_num'], d['order_num']) for d in items])
+        if slice:
+            return list(pairs)[:slice]
+        return list([('317', '5')])
 
-    def _insert_tifs(self, response, index, items, webdriver=None, page=1):
-        d = items[index]
+    def _insert_tifs(self, response, pair, hrefs=[], wd=None, page=1):
         document = html.fromstring(response)
-        table = document.xpath("//table[@id='WQResultGridView']")
-        hrefs = table.xpath('.//tr[position>1]//a[position=1]/@href')
-        pages_tr = table.xpath(".//tr[@style='color:White;background-color:#284775;']")
-        d['documents'] += hrefs
-        if pages_tr:
-            if not webdriver:
-                webdriver = selenium.webdriver.PhantomJS(os.path.join(os.path.dirname(__file__), 'bin/phantomjs'))
-                webdriver.get(self.url_sceleton % d['cause_num'] + '-' + d['order_num'])
-            pages = len(pages_tr.xpath('.//a'))
+        tables = document.xpath("//table[@id='WQResultGridView']")
+        if len(tables) == 0:
+            print('Tables len == 0 at ' + self.url_sceleton % pair[0] + '-' + pair[1] + ' - page: ' + str(page))
+            return hrefs
+        table = tables[-1]
+        hrefs += set(table.xpath(".//tr[position()>1 and not(@align)]//a[position()=1]/@href"))
+        pages = len(table.xpath(".//tr[@align='left']//a"))
+        if pages:
+            pages += 1
+            if not wd:
+                wd = webdriver.PhantomJS(os.path.join(os.path.dirname(__file__), 'bin/phantomjs'))
+                wd.get(self.url_sceleton % pair[0] + '-' + pair[1])
             page += 1
             if page > pages:
+                wd.close()
                 return
             if page != 1:
-                webdriver.execute_script("__doPostBack('WQResultGridView','Page$%s')" % page)
-            self._insert_tifs(webdriver.page_source, index, items, webdriver, page)
+                wd.execute_script("__doPostBack('WQResultGridView','Page$%s')" % page)
+                sleep(2)
+            self._insert_tifs(wd.page_source, pair, hrefs, wd, page)
+        else:
+            return
 
-    async def _fetch(self, url, session):
-        async with session.get(url) as response:
-            return await response.read()
+    async def _fetch(self, pair, session):
+        try:
+            async with session.get(self.url_sceleton % pair[0] + '-' + pair[1]) as response:
+                response = await response.read()
+                hrefs = []
+                self._insert_tifs(response, pair, hrefs)
+                pair += (hrefs,)
+                #print(pair[0] + ' ' + pair[1] + ' ' + str(len(pair[2])))
+                return pair
+        except aiohttp.errors.ClientOSError:
+            print('Error at: ' + self.url_sceleton % pair[0] + '-' + pair[1])
+            return pair
 
-    async def _bound_fetch(self, sem, url, items_i, session):
+
+    async def _bound_fetch(self, sem, pair, session):
         async with sem:
-            return await self._fetch(url, session), items_i
+            return await self._fetch(pair, session)
 
-    async def _run(self, pairs, items):
+    async def _run(self, pairs):
         tasks = []
-        sem = asyncio.Semaphore(200)
+        sem = asyncio.Semaphore(100)
 
         async with ClientSession() as session:
             for pair in pairs:
-                task = asyncio.ensure_future(self._bound_fetch(sem, self.url_sceleton % pair[1], pair[0], session))
+                task = asyncio.ensure_future(self._bound_fetch(sem, pair, session))
                 tasks.append(task)
 
-            responses = asyncio.gather(*tasks)
-            await responses
+            results = asyncio.gather(*tasks)
+            await results
 
-            for response in responses._result:
-                # for each dict appends links to .tif
-                # response[0] = response, response[1] = items index
-                self._insert_tifs(response[0], response[1], items)
+            return results._result
 
-    def scrape(self, pairs, items):
-
+    def scrape(self, pairs):
         loop = asyncio.get_event_loop()
-
-        future = asyncio.ensure_future(self._run(pairs, items))
-        loop.run_until_complete(future)
+        future = asyncio.ensure_future(self._run(pairs))
+        pairs = loop.run_until_complete(future)
+        return pairs
 
 
 class DbWorker():
@@ -130,7 +147,14 @@ def main():
     distillator = MdbDistillator()
     rows = distillator.get_rows()
     spider = Spider()
-    spider.scrape(*spider.load_items(rows))
+    pairs = spider.scrape(spider.load_items(rows, 300))
+    with open('res.csv', 'w', newline='') as csvfile:
+        spamwriter = csv.writer(csvfile, delimiter=',',
+                                quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        spamwriter.writerow(['Cause num', 'Order num', 'Doc'])
+        for pair in pairs:
+            spamwriter.writerow([pair[0], pair[1], pair[2]])
+
 
 if __name__ == '__main__':
     main()
