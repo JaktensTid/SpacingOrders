@@ -68,7 +68,7 @@ class Spider():
         pairs = set([(d['cause_num'], d['order_num']) for d in items])
         if slice:
             return list(pairs)[:slice]
-        return list([('317', '5')])
+        return list(pairs)
 
     def _insert_tifs(self, response, pair, hrefs=[], wd=None, page=1):
         document = html.fromstring(response)
