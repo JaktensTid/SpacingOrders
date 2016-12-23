@@ -1,5 +1,4 @@
 import os
-import threading
 import subprocess
 from lxml import html
 import csv
@@ -10,7 +9,7 @@ import asyncio
 import aiohttp
 from aiohttp import ClientSession
 from selenium import webdriver
-
+import time
 
 class MdbDistillator():
     def __init__(self):
@@ -70,14 +69,16 @@ class Spider():
             return list(pairs)[:slice]
         return list(pairs)
 
-    def _insert_tifs(self, response, pair, hrefs=[], wd=None, page=1):
+    def _insert_tifs(self, response, pair, hrefs=[], returned_email=False, wd=None, page=1):
         document = html.fromstring(response)
         tables = document.xpath("//table[@id='WQResultGridView']")
         if len(tables) == 0:
             print('Tables len == 0 at ' + self.url_sceleton % pair[0] + '-' + pair[1] + ' - page: ' + str(page))
-            return hrefs
+            return
         table = tables[-1]
         hrefs += set(table.xpath(".//tr[position()>1 and not(@align)]//a[position()=1]/@href"))
+        #if 'RETURNED EMAIL' in document.xpath('.//text()'):
+        #    returned_email = True
         pages = len(table.xpath(".//tr[@align='left']//a"))
         if pages:
             pages += 1
@@ -91,7 +92,7 @@ class Spider():
             if page != 1:
                 wd.execute_script("__doPostBack('WQResultGridView','Page$%s')" % page)
                 sleep(2)
-            self._insert_tifs(wd.page_source, pair, hrefs, wd, page)
+            self._insert_tifs(wd.page_source, pair, hrefs, returned_email, wd, page)
         else:
             return
 
@@ -100,8 +101,9 @@ class Spider():
             async with session.get(self.url_sceleton % pair[0] + '-' + pair[1]) as response:
                 response = await response.read()
                 hrefs = []
-                self._insert_tifs(response, pair, hrefs)
-                pair += (hrefs,)
+                returned_email = False
+                self._insert_tifs(response, pair, hrefs, returned_email)
+                pair += (hrefs, returned_email)
                 #print(pair[0] + ' ' + pair[1] + ' ' + str(len(pair[2])))
                 return pair
         except aiohttp.errors.ClientOSError:
@@ -147,13 +149,16 @@ def main():
     distillator = MdbDistillator()
     rows = distillator.get_rows()
     spider = Spider()
-    pairs = spider.scrape(spider.load_items(rows, 300))
+    start = time.time()
+    pairs = spider.scrape(spider.load_items(rows, 50))
+    end = time.time()
+    print('Execution time: ' + str(end - start))
     with open('res.csv', 'w', newline='') as csvfile:
         spamwriter = csv.writer(csvfile, delimiter=',',
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        spamwriter.writerow(['Cause num', 'Order num', 'Doc'])
+        spamwriter.writerow(['Cause num', 'Order num', 'Doc', 'Returned email'])
         for pair in pairs:
-            spamwriter.writerow([pair[0], pair[1], pair[2]])
+            spamwriter.writerow([pair[0], pair[1], pair[2], pair[3]])
 
 
 if __name__ == '__main__':
