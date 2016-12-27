@@ -21,13 +21,13 @@ class Tests(unittest.TestCase):
         rows = distillator.get_rows()
         spider = Spider()
         try:
-            for i in [5, 100, 200, 50, 400, 0]:
+            for i in [5, 100]:
                 start = time.time()
                 spider.scrape(spider.load_items(rows, slice=i))
                 end = time.time()
                 print('Spider ' + str(i) + ' ended in ' + str(end - start))
         except Exception as e:
-            self.fail('test extraction failed', str(e))
+            self.fail('test extraction failed')
 
 if __name__ == '__main__':
     unittest.main()
