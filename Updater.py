@@ -11,18 +11,13 @@ from aiohttp import ClientSession
 from selenium import webdriver
 import time
 
+
 class Pair(object):
-    def __init__(self, cause_num, order_num, hrefs=[], returned_email=False, application=False, exhibit=False, interest=False):
+    def __init__(self, cause_num, order_num, items=[], name=''):
         self.cause_num = cause_num
         self.order_num = order_num
-        self.hrefs = hrefs
-        self.returned_email = returned_email
-        self.application = application
-        self.exhibit = exhibit
-        self.interest = interest
-
-    def is_to_ocr(self):
-        return any([self.returned_email, self.application, self.exhibit, self.interest])
+        self.items = items
+        self.name = name
 
 
 class MdbDistillator():
@@ -81,28 +76,19 @@ class Spider():
         pairs = set([(d['cause_num'], d['order_num']) for d in items])
         pairs = [Pair(pair[0], pair[1]) for pair in pairs]
         if slice:
-            return (pairs[:slice], items)
-        return (pairs, items)
+            return pairs[:slice], items
+        return pairs, items
 
-    def _insert_tifs(self, response, pair, hrefs=[], wd=None, page=1):
+    def _insert_tifs(self, response, pair, items=[], wd=None, page=1):
         document = html.fromstring(response)
         tables = document.xpath("//table[@id='WQResultGridView']")
         if len(tables) == 0:
-            print('Tables len == 0 at ' + self.url_sceleton % pair.cause_num + '-' + pair.order_num + ' - page: ' + str(page))
+            print('Tables len == 0 at ' + self.url_sceleton % pair.cause_num + '-' + pair.order_num + ' - page: ' + str(
+                page))
             return
         table = tables[-1]
-        hrefs += set(table.xpath(".//tr[position()>1 and not(@align)]//a[position()=1]/@href"))
-        doc_string = response
-        if not isinstance(response, str):
-            doc_string = response.decode('utf-8').lower()
-        if 'returned_email' in doc_string:
-            pair.returned_email = True
-        if 'application' in doc_string:
-            pair.application = True
-        if 'exhibit' in doc_string:
-            pair.exhibit = True
-        if 'interested part' in doc_string:
-            pair.interest = True
+        tds = table.xpath(".//tr[position()>1 and not(@align)]/td[position()=3]")
+        items += map(lambda element: (element.xpath(".//a/@href"), element.xpath(".//a/text()")), tds)
         pages = len(table.xpath(".//tr[@align='left']//a"))
         if pages:
             pages += 1
@@ -116,7 +102,7 @@ class Spider():
             if page != 1:
                 wd.execute_script("__doPostBack('WQResultGridView','Page$%s')" % page)
                 sleep(2)
-            self._insert_tifs(response=wd.page_source, hrefs=hrefs, pair=pair, wd=wd, page=page)
+            self._insert_tifs(response=wd.page_source, items=items, pair=pair, wd=wd, page=page)
         else:
             return
 
@@ -124,14 +110,13 @@ class Spider():
         try:
             async with session.get(self.url_sceleton % pair.cause_num + '-' + pair.order_num) as response:
                 response = await response.read()
-                hrefs = []
-                self._insert_tifs(response=response, hrefs=hrefs, pair=pair)
-                pair.hrefs = hrefs
+                items = []
+                self._insert_tifs(response=response, items=items, pair=pair)
+                pair.items = items
                 return pair
         except aiohttp.errors.ClientOSError:
-            print('Error at: ' + self.url_sceleton % pair.cause_num + '-' + pair[1])
+            print('Error at: ' + self.url_sceleton % pair.cause_num + '-' + pair.order_num)
             return pair
-
 
     async def _bound_fetch(self, sem, pair, session):
         async with sem:
@@ -173,7 +158,7 @@ def main():
     spider = Spider()
     start = time.time()
     pairs, items = spider.load_items(rows, 50)
-    pairs = [pair for pair in spider.scrape(pairs) if pair.is_to_ocr()]
+    pairs = spider.scrape(pairs)
     end = time.time()
     for item in items:
         for pair in pairs:
@@ -183,11 +168,11 @@ def main():
     with open('res.csv', 'w', newline='') as csvfile:
         spamwriter = csv.writer(csvfile, delimiter=',',
                                 quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        spamwriter.writerow(['Cause num', 'Order num', 'Doc', 'Returned email', 'Application', 'Exhibit', 'Interested parties'])
+        spamwriter.writerow(
+            ['Cause num', 'Order num', 'Doc', 'Name'])
         for pair in pairs:
-            spamwriter.writerow([pair.cause_num, pair.order_num, pair.hrefs,
-                                 pair.returned_email, pair.application, pair.exhibit,
-                                 pair.interest])
+            for item in pair.items:
+                spamwriter.writerow([pair.cause_num, pair.order_num, item[0], item[1]])
 
 
 if __name__ == '__main__':
