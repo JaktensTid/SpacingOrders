@@ -10,6 +10,7 @@ import aiohttp
 from aiohttp import ClientSession
 from selenium import webdriver
 import time
+import sys
 
 
 class Pair(object):
@@ -58,6 +59,8 @@ class MdbDistillator():
 
 
 class Spider():
+    total_scraped = 0
+
     def __init__(self):
         self.url_sceleton = 'http://ogccweblink.state.co.us/results.aspx?classid=04&id=%s'
 
@@ -108,23 +111,34 @@ class Spider():
 
     async def _fetch(self, pair, session):
         try:
-            async with session.get(self.url_sceleton % pair.cause_num + '-' + pair.order_num) as response:
+            async with session.get(self.url_sceleton % pair.cause_num + '-' + pair.order_num, timeout=1000) as response:
                 response = await response.read()
                 items = []
                 self._insert_tifs(response=response, items=items, pair=pair)
                 pair.items = items
+                self.total_scraped += 1
+                print(pair.cause_num + "-" + pair.order_num + ' . Total scraped: ' + str(self.total_scraped))
                 return pair
         except aiohttp.errors.ClientOSError:
             print('Error at: ' + self.url_sceleton % pair.cause_num + '-' + pair.order_num)
             return pair
 
     async def _bound_fetch(self, sem, pair, session):
-        async with sem:
-            return await self._fetch(pair, session)
+        try:
+            async with sem:
+                return await self._fetch(pair, session)
+        except asyncio.TimeoutError:
+            self.total_scraped += 1
+            print('TIMEOUT ERROR: ' + pair.cause_num + ' - ' + pair.order_num + ' . Total scraped: ' + str(self.total_scraped))
+            return pair
+        except Exception as e:
+            print(e)
+            sleep(3600)
+
 
     async def _run(self, pairs):
         tasks = []
-        sem = asyncio.Semaphore(100)
+        sem = asyncio.Semaphore(1000)
 
         async with ClientSession() as session:
             for pair in pairs:
@@ -145,10 +159,9 @@ class Spider():
 
 class DbWorker():
     def __init__(self):
-        password = ''
         with open('creds.txt', 'r') as f:
             password = f.readline()
-        self.password = password
+            self.password = password
 
 
 def main():
@@ -157,7 +170,8 @@ def main():
     rows = distillator.get_rows()[1:]
     spider = Spider()
     start = time.time()
-    pairs, items = spider.load_items(rows, 50)
+    pairs, items = spider.load_items(rows)
+    print(len(set(pairs)))
     pairs = spider.scrape(pairs)
     end = time.time()
     for item in items:
