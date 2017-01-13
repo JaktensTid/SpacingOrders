@@ -80,7 +80,7 @@ def collect_descriptions():
                 if cause == order[0] and order_num == order[1]:
                     order += [item[-2], item[-1]]
                     next.append(order + [item[-2], item[-1]])
-        with open('main_res.csv', 'w', encoding='utf-8') as file:
+        with open('main_res.csv', 'w', encoding='utf-8', newline='') as file:
             writer = csv.writer(file,delimiter=',',
                             quotechar='"')
             writer.writerow(['Cause num', 'Order num', 'Doc', 'Name', 'Date', 'Desc'])
