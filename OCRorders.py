@@ -47,10 +47,10 @@ def handler(d):
 
 
 def ocr_all():
-    from datetime import datetime
-    today = datetime.today()
-    if not (today.day == 14 and today.year == 2017 and today.month == 1):
-        return
+    #from datetime import datetime
+    #today = datetime.today()
+    #if not (today.day == 14 and today.year == 2017 and today.month == 1):
+    #    return
     def check_priority(name):
         for priority in priorities:
             if priority in name:
