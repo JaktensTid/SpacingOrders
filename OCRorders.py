@@ -20,7 +20,7 @@ def make_url(doc_number, doc_url):
 def handler(d):
     print('Thread is fetching ' + d['doc'])
     collection = get_collection()
-    def ocr(row):
+    def ocr(row, times=1):
         global total_ocred
         doc_url = row[2].replace("['", '').replace("']", '')
         doc_number = row[0]
@@ -29,7 +29,9 @@ def handler(d):
             d = json.loads(response.content.decode('utf-8'))
             if d['ocrFailed'] == 'true':
                 print('Fetching ' + doc_number + ' - ' + doc_url + ' again')
-                ocr(row)
+                if times < 3:
+                    ocr(row,times=times + 1)
+                return
             total_ocred += 1
             d['causeNum'] = row[0]
             d['orderNum'] = row[1]
