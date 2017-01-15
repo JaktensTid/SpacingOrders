@@ -23,6 +23,8 @@ def handler(d):
     def ocr(row, times=1):
         global total_ocred
         doc_url = row[2].replace("['", '').replace("']", '')
+        if doc_url == 'DownloadDocument.aspx?DocumentId=':
+            return
         doc_number = row[0]
         try:
             response = requests.get(make_url(doc_number, doc_url))
