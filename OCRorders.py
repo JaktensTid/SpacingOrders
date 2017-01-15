@@ -27,7 +27,7 @@ def handler(d):
             return
         doc_number = row[0]
         try:
-            response = requests.get(make_url(doc_number, doc_url))
+            response = requests.get(make_url(doc_number, doc_url), timeout=300)
             d = json.loads(response.content.decode('utf-8'))
             if d['ocrFailed'] == 'true':
                 print('Fetching ' + doc_number + ' - ' + doc_url + ' again')
