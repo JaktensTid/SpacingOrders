@@ -39,7 +39,7 @@ def handler(d):
             d['name'] = row[3].replace("['", '').replace("']", '')
             d['docDate'] = row[4]
             d['description'] = row[5]
-            d['_id'] = d['docLink']
+            d['docUrl'] = d['docLink']
             collection.insert_one(d)
             print('Fetched ' + doc_number + ' - ' + doc_url + '. Total fetched: ' + str(total_ocred))
         except Exception as e:
