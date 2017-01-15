@@ -26,7 +26,7 @@ def handler(d):
             return 0
         if res['normAddress']:
             print('Got something in ' + d['cause'] + '-' + d['order'])
-            #collection.insert_one(res)
+            collection.insert_one(res)
             return 1
         return 0
 
