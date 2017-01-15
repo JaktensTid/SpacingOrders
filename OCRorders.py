@@ -22,6 +22,8 @@ def handler(d):
     collection = get_collection()
 
     def insert(res):
+        if not res:
+            return 0
         if res['normAddress']:
             print('Got something in ' + d['cause'] + '-' + d['order'])
             collection.insert_one(res)
@@ -50,7 +52,7 @@ def handler(d):
             return d
         except Exception as e:
             if str(e) == 'ocrFailed':
-               if times < 2:
+               if times < 3:
                    return ocr(row, times=times+1)
             print(str(e) + ' - ' + doc_url)
     for row in d[priorities[0]]:
