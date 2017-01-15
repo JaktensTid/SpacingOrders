@@ -94,7 +94,7 @@ def ocr_all():
             d[priorities[1]] = [row for row in doc_rows if priorities[1] in row[3].lower()]
             d[priorities[2]] = [row for row in doc_rows if priorities[2] in row[3].lower()]
             grouped.append(d)
-        with Pool(1) as p:
+        with Pool(2) as p:
             p.map(handler, grouped)
     print('Over')
 
