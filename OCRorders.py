@@ -31,7 +31,7 @@ def handler(d):
             d = json.loads(response.content.decode('utf-8'))
             if d['ocrFailed'] == 'true':
                 print('Fetching ' + doc_number + ' - ' + doc_url + ' again')
-                if times < 3:
+                if times < 2:
                     ocr(row,times=times + 1)
                 return
             total_ocred += 1
@@ -45,6 +45,9 @@ def handler(d):
             collection.insert_one(d)
             print('Fetched ' + doc_number + ' - ' + doc_url + '. Total fetched: ' + str(total_ocred))
         except Exception as e:
+            if str(e) == 'ocrFailed':
+               if times < 2:
+                   ocr(row, times=times+1)
             print(str(e) + ' - ' + doc_url)
     for row in d['rows']:
         ocr(row)
