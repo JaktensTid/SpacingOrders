@@ -26,7 +26,7 @@ def handler(d):
             return 0
         if res['normAddress']:
             print('Got something in ' + d['cause'] + '-' + d['order'])
-            collection.insert_one(res)
+            #collection.insert_one(res)
             return 1
         return 0
 
@@ -85,7 +85,7 @@ def ocr_all():
     if os.path.isfile('main_res.csv'):
         with open('main_res.csv', 'r', newline='') as file:
             reader = csv.reader(file, delimiter=',', quotechar='"')
-            rows = [row for row in reader if check_priority(row[3])]
+            rows = [row for row in reader]
         grouped = []
         for order in list(set([(row[0],row[1]) for row in rows])):
             d = { 'cause' : order[0], 'order' : order[1] }
@@ -94,7 +94,7 @@ def ocr_all():
             d[priorities[1]] = [row for row in doc_rows if priorities[1] in row[3].lower()]
             d[priorities[2]] = [row for row in doc_rows if priorities[2] in row[3].lower()]
             grouped.append(d)
-        with Pool(2) as p:
+        with Pool(1) as p:
             p.map(handler, grouped)
     print('Over')
 
