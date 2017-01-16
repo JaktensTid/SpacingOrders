@@ -72,6 +72,7 @@ def collect_descriptions():
         loop = asyncio.get_event_loop()
         future = asyncio.ensure_future(run(causes))
         loop.run_until_complete(future)
+<<<<<<< HEAD
         for order in orders:
             for item in result:
                 c_o = item[0].split('-')
@@ -84,6 +85,22 @@ def collect_descriptions():
             writer.writeline(['Cause num', 'Order num', 'Doc', 'Name', 'Date', 'Desc'])
             for order in orders:
                 writer.writeline(order)
+=======
+        next = []
+        for order in orders:
+            for item in result:
+                c_o = item[0].split('-')
+                cause, order_num = c_o[0].strip(), c_o[1].strip()
+                if cause == order[0] and order_num == order[1]:
+                    order += [item[-2], item[-1]]
+                    next.append(order + [item[-2], item[-1]])
+        with open('main_res.csv', 'w', encoding='utf-8', newline='') as file:
+            writer = csv.writer(file,delimiter=',',
+                            quotechar='"')
+            writer.writerow(['Cause num', 'Order num', 'Doc', 'Name', 'Date', 'Desc'])
+            for order in next:
+                writer.writerow(order)
+>>>>>>> e2d702f47341ab545b75520f76979f168370c804
         print('Over')
 
 if __name__ == '__main__':
