@@ -24,6 +24,7 @@ def handler(d):
     def insert(res):
         if not res:
             return 0
+        print(type(res))
         if res['normAddress']:
             print('Got something in ' + d['cause'] + '-' + d['order'])
             collection.insert_one(res)
