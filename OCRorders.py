@@ -7,7 +7,8 @@ import json
 
 priorities = ['parties', 'application', 'exhibit']
 
-def get_collection():#MONGODB_URI
+
+def get_collection():  # MONGODB_URI
     client = MongoClient(os.environ['MONGODB_URI'])
     db = client['heroku_zsl3pl6l']
     return db.orders
@@ -22,8 +23,10 @@ def handler(d):
     collection = get_collection()
 
     def insert(res):
-        print(res)
         if not res:
+            return 0
+        if 'error' in res:
+            print('Error in res')
             return 0
         if res['normAddress']:
             print('Got something in ' + d['cause'] + '-' + d['order'])
@@ -34,7 +37,7 @@ def handler(d):
     def ocr(row, times=1):
         doc_url = row[2].replace("['", '').replace("']", '')
         if doc_url == 'DownloadDocument.aspx?DocumentId=':
-            return {'normAddress' : []}
+            return {'normAddress': []}
         doc_number = row[0]
         try:
             response = requests.get(make_url(doc_number, doc_url))
@@ -52,9 +55,10 @@ def handler(d):
             return None
         except Exception as e:
             if str(e) == 'ocrFailed':
-               if times < 3:
-                   return ocr(row, times=times+1)
+                if times < 3:
+                    return ocr(row, times=times + 1)
             print(str(e) + ' - ' + doc_url)
+
     last_scraped = None
     for row in d[priorities[0]]:
         res = ocr(row)
@@ -93,18 +97,19 @@ def ocr_all():
             if priority in name:
                 return True
         return False
+
     if os.path.isfile('main_res.csv'):
         collection = get_collection()
         scraped_docs = collection.find()
         scraped_orders = []
         for doc in scraped_docs:
-        	scraped_orders.append((doc['causeNum'], doc['orderNum']))
+            scraped_orders.append((doc['causeNum'], doc['orderNum']))
         with open('main_res.csv', 'r', newline='', encoding='utf-8') as file:
             reader = csv.reader(file, delimiter=',', quotechar='"')
             rows = [row for row in reader]
         grouped = []
-        for order in [t for t in list(set([(row[0],row[1]) for row in rows])) if t not in scraped_orders]:
-            d = { 'cause' : order[0], 'order' : order[1] }
+        for order in [t for t in list(set([(row[0], row[1]) for row in rows])) if t not in scraped_orders]:
+            d = {'cause': order[0], 'order': order[1]}
             doc_rows = [row for row in rows if row[0] == order[0] and row[1] == order[1]]
             d[priorities[0]] = [row for row in doc_rows if priorities[0] in row[3].lower()]
             d[priorities[1]] = [row for row in doc_rows if priorities[1] in row[3].lower()]
