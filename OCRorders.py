@@ -38,10 +38,6 @@ def handler(d):
         try:
             response = requests.get(make_url(doc_number, doc_url))
             d = json.loads(response.content.decode('utf-8'))
-            if d['ocrFailed'] == 'true':
-                print('Fetching ' + doc_number + ' - ' + doc_url + ' again')
-                if times < 2:
-                    return ocr(row,times=times + 1)
             d['causeNum'] = row[0]
             d['orderNum'] = row[1]
             d['docLink'] = row[2].replace("['", '').replace("']", '')
