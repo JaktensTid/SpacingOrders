@@ -50,6 +50,9 @@ def handler(d):
             d['description'] = row[5]
             d['docUrl'] = d['docLink']
             return d
+        except requests.exceptions.ConnectionError as e:
+            print(str(e))
+            return None
         except Exception as e:
             if str(e) == 'ocrFailed':
                if times < 3:
