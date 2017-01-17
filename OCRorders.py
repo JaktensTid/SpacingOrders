@@ -81,7 +81,7 @@ def handler(d):
 
     if last_scraped:
         print('Inserting emtpy doc for ' + d['cause'] + '-' + d['order'])
-    	collection.insert(last_scraped)
+        collection.insert(last_scraped)
 
     print('Nothing fetched in ' + d['cause'] + '-' + d['order'])
 
