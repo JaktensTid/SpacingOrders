@@ -4,6 +4,7 @@ import requests
 import csv
 import os
 import json
+import time
 
 priorities = ['parties', 'application', 'exhibit']
 
@@ -52,7 +53,8 @@ def handler(d):
             return d
         except requests.exceptions.ConnectionError as e:
             print(str(e))
-            return None
+            time.sleep(60 * 10)
+            return ocr(row, times=times + 1)
         except Exception as e:
             if str(e) == 'ocrFailed':
                 if times < 3:
